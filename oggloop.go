@@ -69,8 +69,8 @@ func (r *errReader) Skip(n int) {
 	r.ReadBytes(n)
 }
 
-func mustAtoi(str string) int {
-	n, err := strconv.Atoi(str)
+func mustAtoi(str string) int64 {
+	n, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
 		panic(err)
 	}
@@ -79,7 +79,7 @@ func mustAtoi(str string) int {
 
 // Read reads the given src as an Ogg/Vorbis stream and returns LOOPSTART and LOOPLENGTH meta data
 // values. Read returns an error when IO error happens.
-func Read(src io.Reader) (loopStart, loopLength int, err error) {
+func Read(src io.Reader) (loopStart, loopLength int64, err error) {
 	r := &errReader{r: src}
 	defer func() {
 		if r.err != nil {
