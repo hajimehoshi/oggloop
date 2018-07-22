@@ -69,6 +69,14 @@ func (r *errReader) Skip(n int) {
 	r.ReadBytes(n)
 }
 
+func mustAtoi(str string) int {
+	n, err := strconv.Atoi(str)
+	if err != nil {
+		panic(err)
+	}
+	return n
+}
+
 // Read reads the given src as an Ogg/Vorbis stream and returns LOOPSTART and LOOPLENGTH meta data
 // values. Read returns an error when IO error happens.
 func Read(src io.Reader) (loopStart, loopLength int, err error) {
@@ -115,18 +123,10 @@ func Read(src io.Reader) (loopStart, loopLength int, err error) {
 			size -= 5
 			meta := r.ReadBytes(size)
 			if m := loopStartRe.FindSubmatch(meta); len(m) > 1 {
-				n, err := strconv.Atoi(string(m[1]))
-				if err != nil {
-					panic(err)
-				}
-				loopStart = n
+				loopStart = mustAtoi(string(m[1]))
 			}
 			if m := loopLengthRe.FindSubmatch(meta); len(m) > 1 {
-				n, err := strconv.Atoi(string(m[1]))
-				if err != nil {
-					panic(err)
-				}
-				loopLength = n
+				loopLength = mustAtoi(string(m[1]))
 			}
 			headerFound = true
 		}
