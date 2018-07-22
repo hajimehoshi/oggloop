@@ -98,10 +98,7 @@ func Read(src io.Reader) (loopStart, loopLength int, err error) {
 
 		for i := 0; i < len(segs); i++ {
 			headerType := r.ReadByte()
-
-			b := r.ReadBytes(4)
-
-			if string(b) != "vorb" {
+			if string(r.ReadBytes(4)) != "vorb" {
 				r.Skip(int(segs[i]) - 5)
 				continue
 			}
