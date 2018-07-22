@@ -23,79 +23,82 @@ import (
 	"strconv"
 )
 
-func skip(src io.Reader, n int) error {
-	if n == 0 {
-		return nil
-	}
-	if n < 0 {
-		return fmt.Errorf("oggloop: skipping byte should be positive: %d", n)
-	}
-	if _, err := io.ReadFull(src, make([]byte, n)); err != nil {
-		return err
-	}
-	return nil
-}
-
-func readByte(src io.Reader) (byte, error) {
-	b := make([]byte, 1)
-	if _, err := io.ReadFull(src, b); err != nil {
-		return 0, err
-	}
-	return b[0], nil
-}
-
 var (
 	loopStartRe  = regexp.MustCompile(`LOOPSTART=([0-9]+)`)
 	loopLengthRe = regexp.MustCompile(`LOOPLENGTH=([0-9]+)`)
 )
 
+type errReader struct {
+	r   io.Reader
+	err error
+}
+
+func (r *errReader) ReadByte() byte {
+	return r.ReadBytes(1)[0]
+}
+
+func (r *errReader) ReadBytes(n int) []byte {
+	buf := make([]byte, n)
+	if r.err != nil {
+		return buf
+	}
+	if n == 0 {
+		return buf
+	}
+	if n < 0 {
+		r.err = fmt.Errorf("oggloop: reading bytes should be positive: %d", n)
+		return buf
+	}
+	if _, err := io.ReadFull(r.r, buf); err != nil {
+		r.err = err
+	}
+	return buf
+}
+
+func (r *errReader) Skip(n int) {
+	if r.err != nil {
+		return
+	}
+	if n == 0 {
+		return
+	}
+	if n < 0 {
+		r.err = fmt.Errorf("oggloop: skipping bytes should be positive: %d", n)
+		return
+	}
+	r.ReadBytes(n)
+}
+
 // Read reads the given src as an Ogg/Vorbis stream and returns LOOPSTART and LOOPLENGTH meta data
 // values. Read returns an error when IO error happens.
 func Read(src io.Reader) (loopStart, loopLength int, err error) {
-	for {
-		b := make([]byte, 4)
-		if _, err := io.ReadFull(src, b); err != nil {
-			return 0, 0, err
+	r := &errReader{r: src}
+	defer func() {
+		if r.err != nil {
+			err = r.err
 		}
-		if string(b) != "OggS" {
+	}()
+
+	for {
+		if string(r.ReadBytes(4)) != "OggS" {
 			break
 		}
-
-		if err := skip(src, 26-4); err != nil {
-			return 0, 0, err
-		}
-
+		r.Skip(26 - 4)
 		headerFound := false
-		nseg, err := readByte(src)
-		if err != nil {
-			return 0, 0, err
-		}
-		segs := make([]byte, nseg)
-		if _, err := io.ReadFull(src, segs); err != nil {
-			return 0, 0, err
-		}
+		nseg := r.ReadByte()
+		segs := r.ReadBytes(int(nseg))
 
 		for i := 0; i < len(segs); i++ {
-			headerType, err := readByte(src)
-			if err != nil {
-				return 0, 0, err
-			}
+			headerType := r.ReadByte()
 
-			b := make([]byte, 4)
-			if _, err := io.ReadFull(src, b); err != nil {
-				return 0, 0, err
-			}
+			b := r.ReadBytes(4)
 
 			if string(b) != "vorb" {
-				if err := skip(src, int(segs[i])-5); err != nil {
-					return 0, 0, err
-				}
+				r.Skip(int(segs[i])-5)
 				continue
 			}
 			if headerType != 3 {
-				if err := skip(src, int(segs[i])-5); err != nil {
-					return 0, 0, err
-				}
+				r.Skip(int(segs[i])-5)
 				headerFound = true
 				continue
 			}
@@ -110,10 +113,7 @@ func Read(src io.Reader) (loopStart, loopLength int, err error) {
 				}
 			}
 			size -= 5
-			meta := make([]byte, size)
-			if _, err := io.ReadFull(src, meta); err != nil {
-				return 0, 0, err
-			}
+			meta := r.ReadBytes(size)
 			if m := loopStartRe.FindSubmatch(meta); len(m) > 1 {
 				n, err := strconv.Atoi(string(m[1]))
 				if err != nil {
