@@ -102,12 +102,13 @@ func Read(src io.Reader) (loopStart, loopLength int, err error) {
 			b := r.ReadBytes(4)
 
 			if string(b) != "vorb" {
-				r.Skip(int(segs[i])-5)
+				r.Skip(int(segs[i]) - 5)
 				continue
 			}
+
+			headerFound = true
 			if headerType != 3 {
-				r.Skip(int(segs[i])-5)
-				headerFound = true
+				r.Skip(int(segs[i]) - 5)
 				continue
 			}
 
@@ -128,7 +129,6 @@ func Read(src io.Reader) (loopStart, loopLength int, err error) {
 			if m := loopLengthRe.FindSubmatch(meta); len(m) > 1 {
 				loopLength = mustAtoi(string(m[1]))
 			}
-			headerFound = true
 		}
 		if !headerFound {
 			break
